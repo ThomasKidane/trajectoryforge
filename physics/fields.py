@@ -555,8 +555,9 @@ class DragZone(NamedTuple):
 # Field Collection Utilities
 # =============================================================================
 
-# Type for any force field
-AnyField = WindField | VortexField | PointForce | GravityWell | DragZone
+# Type for any force field (Python 3.9 compatible)
+from typing import Union
+AnyField = Union[WindField, VortexField, PointForce, GravityWell, DragZone]
 
 
 def compute_field_force(field: AnyField, position: Array, velocity: Array) -> Array:
