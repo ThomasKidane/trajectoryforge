@@ -468,14 +468,22 @@ def main():
         history['val_end'].append(val_metrics['endpoint_loss'])
         history['lr'].append(current_lr)
         
-        if val_metrics['loss'] < best_val_loss:
+        # Save best model (or if val is NaN, save based on train loss)
+        save_model = False
+        if not np.isnan(val_metrics['loss']) and val_metrics['loss'] < best_val_loss:
             best_val_loss = val_metrics['loss']
-            # Save best model
+            save_model = True
+        elif np.isnan(val_metrics['loss']) and train_metrics['loss'] < best_val_loss:
+            best_val_loss = train_metrics['loss']
+            save_model = True
+        
+        if save_model:
             torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'epoch': epoch,
                 'val_loss': val_metrics['loss'],
+                'train_loss': train_metrics['loss'],
                 'args': vars(args),
                 'history': history,
             }, args.output)
@@ -498,6 +506,19 @@ def main():
     print(f"   Best val loss: {best_val_loss:.6f}")
     print(f"   Model saved to: {args.output}")
     print("=" * 70)
+    
+    # Always save final model
+    final_output = args.output.replace('.pt', '_final.pt')
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'epoch': args.epochs - 1,
+        'val_loss': history['val_loss'][-1],
+        'train_loss': history['train_loss'][-1],
+        'args': vars(args),
+        'history': history,
+    }, final_output)
+    print(f"   Final model also saved to: {final_output}")
 
 
 if __name__ == '__main__':
