@@ -107,7 +107,7 @@ class ForceFieldDecoder(nn.Module):
         size = torch.nn.functional.softplus(self.wind_size(h)) + 0.5
         direction = torch.tanh(self.wind_direction(h))
         direction = direction / (torch.norm(direction, dim=-1, keepdim=True) + 1e-8)
-        strength = torch.nn.functional.softplus(self.wind_strength(h)) * 15  # Higher max strength
+        strength = torch.nn.functional.softplus(self.wind_strength(h)) * 10  # Scale strength
         
         return {
             'center': center,
@@ -256,9 +256,13 @@ def train_epoch(model, dataloader, optimizer, device, dt=0.01, num_steps=100,
         end_loss = endpoint_loss(pred_traj, trajectory)
         loss = traj_loss + endpoint_weight * end_loss
         
+        # Skip NaN losses
+        if torch.isnan(loss):
+            continue
+        
         # Backward pass
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
         
         total_loss += loss.item()
@@ -414,9 +418,9 @@ def main():
     val_dataset = TrajectoryDataset(val_samples, target_length=100)
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, 
-                              num_workers=4, pin_memory=True)
+                              num_workers=0, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, 
-                            num_workers=4, pin_memory=True)
+                            num_workers=0, pin_memory=True)
     
     # Create model
     model = InverseModel(hidden_dim=args.hidden_dim, latent_dim=args.latent_dim).to(device)
