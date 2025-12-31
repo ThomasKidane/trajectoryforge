@@ -88,10 +88,10 @@ class ForceFieldDecoder(nn.Module):
         h = self.net(z)
         
         center = self.wind_center(h)
-        size = torch.softplus(self.wind_size(h)) + 0.5  # Ensure positive
+        size = torch.nn.functional.softplus(self.wind_size(h)) + 0.5  # Ensure positive
         direction = torch.tanh(self.wind_direction(h))
         direction = direction / (torch.norm(direction, dim=-1, keepdim=True) + 1e-8)
-        strength = torch.softplus(self.wind_strength(h)) * 10  # Scale to reasonable range
+        strength = torch.nn.functional.softplus(self.wind_strength(h)) * 10  # Scale to reasonable range
         
         return {
             'center': center,
