@@ -208,45 +208,73 @@ class MultiFieldModel(nn.Module):
 # =============================================================================
 
 def soft_indicator_box(pos, center, size, softness=0.1):
-    """Soft rectangular indicator."""
-    rel = (pos - center) / size
+    """Soft rectangular indicator.
+    pos: (batch, 2)
+    center: (batch, 2)
+    size: (batch, 2)
+    """
+    rel = (pos - center) / (size + 1e-8)
     scale = 1.0 / softness
     ind = torch.sigmoid(scale * (1.0 - torch.abs(rel)))
-    return ind.prod(dim=-1, keepdim=True)
+    return ind.prod(dim=-1, keepdim=True)  # (batch, 1)
 
 
 def soft_indicator_circle(pos, center, radius, softness=0.1):
-    """Soft circular indicator."""
-    dist = (pos - center).norm(dim=-1, keepdim=True)
-    rel_dist = dist / radius
+    """Soft circular indicator.
+    pos: (batch, 2)
+    center: (batch, 2)
+    radius: (batch,)
+    """
+    dist = (pos - center).norm(dim=-1, keepdim=True)  # (batch, 1)
+    radius_expanded = radius.unsqueeze(-1) if radius.dim() == 1 else radius  # (batch, 1)
+    rel_dist = dist / (radius_expanded + 1e-8)
     scale = 1.0 / softness
-    return torch.sigmoid(scale * (1.0 - rel_dist))
+    return torch.sigmoid(scale * (1.0 - rel_dist))  # (batch, 1)
 
 
 def compute_wind_force(pos, center, size, direction, strength):
-    """Compute wind field force."""
-    indicator = soft_indicator_box(pos, center, size)
-    return indicator * direction * strength.unsqueeze(-1)
+    """Compute wind field force.
+    pos: (batch, 2)
+    center: (batch, 2)
+    size: (batch, 2)
+    direction: (batch, 2)
+    strength: (batch,)
+    """
+    indicator = soft_indicator_box(pos, center, size)  # (batch, 1)
+    strength_expanded = strength.unsqueeze(-1) if strength.dim() == 1 else strength  # (batch, 1)
+    return indicator * direction * strength_expanded  # (batch, 2)
 
 
 def compute_vortex_force(pos, center, radius, strength):
-    """Compute vortex field force (perpendicular to radial)."""
-    indicator = soft_indicator_circle(pos, center, radius)
-    to_center = pos - center
+    """Compute vortex field force (perpendicular to radial).
+    pos: (batch, 2)
+    center: (batch, 2)
+    radius: (batch,)
+    strength: (batch,)
+    """
+    indicator = soft_indicator_circle(pos, center, radius)  # (batch, 1)
+    to_center = pos - center  # (batch, 2)
     # Perpendicular direction (rotate 90 degrees)
-    tangent = torch.stack([-to_center[..., 1], to_center[..., 0]], dim=-1)
-    tangent = tangent / (tangent.norm(dim=-1, keepdim=True) + 1e-8)
-    return indicator * tangent * strength.unsqueeze(-1)
+    tangent = torch.stack([-to_center[..., 1], to_center[..., 0]], dim=-1)  # (batch, 2)
+    tangent = tangent / (tangent.norm(dim=-1, keepdim=True) + 1e-8)  # (batch, 2)
+    strength_expanded = strength.unsqueeze(-1) if strength.dim() == 1 else strength  # (batch, 1)
+    return indicator * tangent * strength_expanded  # (batch, 2)
 
 
 def compute_point_force(pos, center, radius, strength):
-    """Compute point force (attractor if strength > 0, repeller if < 0)."""
-    indicator = soft_indicator_circle(pos, center, radius)
-    to_center = center - pos
-    dist = to_center.norm(dim=-1, keepdim=True)
-    direction = to_center / (dist + 1e-8)
-    falloff = 1.0 / (1.0 + dist * 0.5)
-    return indicator * direction * strength.unsqueeze(-1) * falloff
+    """Compute point force (attractor if strength > 0, repeller if < 0).
+    pos: (batch, 2)
+    center: (batch, 2)
+    radius: (batch,)
+    strength: (batch,)
+    """
+    indicator = soft_indicator_circle(pos, center, radius)  # (batch, 1)
+    to_center = center - pos  # (batch, 2)
+    dist = to_center.norm(dim=-1, keepdim=True)  # (batch, 1)
+    direction = to_center / (dist + 1e-8)  # (batch, 2)
+    falloff = 1.0 / (1.0 + dist * 0.5)  # (batch, 1)
+    strength_expanded = strength.unsqueeze(-1) if strength.dim() == 1 else strength  # (batch, 1)
+    return indicator * direction * strength_expanded * falloff  # (batch, 2)
 
 
 def simulate_trajectory_multifield(init_pos, init_vel, slots, dt=0.01, num_steps=100):
