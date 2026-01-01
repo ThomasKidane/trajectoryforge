@@ -32,32 +32,55 @@ from model.curriculum import generate_sample_at_difficulty, DIFFICULTY_LEVELS
 # =============================================================================
 
 class TrajectoryEncoder(nn.Module):
-    def __init__(self, hidden_dim=256, latent_dim=128, num_heads=4, num_layers=4):
+    """Larger Transformer encoder for trajectories."""
+    
+    def __init__(self, hidden_dim=512, latent_dim=256, num_heads=8, num_layers=6):
         super().__init__()
         self.input_proj = nn.Linear(2, hidden_dim)
+        
+        # Positional encoding
+        self.pos_encoding = nn.Parameter(torch.randn(1, 200, hidden_dim) * 0.02)
+        
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim, nhead=num_heads,
-            dim_feedforward=hidden_dim * 4, dropout=0.1, batch_first=True
+            dim_feedforward=hidden_dim * 4, dropout=0.1, batch_first=True,
+            activation='gelu'
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-        self.output_proj = nn.Linear(hidden_dim, latent_dim)
+        
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.output_proj = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_dim, latent_dim),
+        )
         
     def forward(self, x):
+        batch_size, seq_len, _ = x.shape
         x = self.input_proj(x)
+        x = x + self.pos_encoding[:, :seq_len, :]
         x = self.transformer(x)
+        x = self.norm(x)
         x = x.mean(dim=1)
         x = self.output_proj(x)
         return x
 
 
 class ForceFieldDecoder(nn.Module):
-    def __init__(self, latent_dim=128, hidden_dim=256):
+    """Larger decoder for wind field parameters."""
+    
+    def __init__(self, latent_dim=256, hidden_dim=512):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(latent_dim, hidden_dim),
-            nn.ReLU(),
+            nn.GELU(),
+            nn.Dropout(0.1),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
         )
         self.wind_center = nn.Linear(hidden_dim, 2)
         self.wind_size = nn.Linear(hidden_dim, 2)
@@ -90,6 +113,22 @@ class InverseModel(nn.Module):
 # Simulation
 # =============================================================================
 
+def resample_trajectory(traj, target_len=100):
+    """Resample trajectory to target length using linear interpolation."""
+    current_len = len(traj)
+    if current_len == target_len:
+        return traj
+    
+    old_indices = np.linspace(0, current_len - 1, current_len)
+    new_indices = np.linspace(0, current_len - 1, target_len)
+    
+    new_traj = np.zeros((target_len, 2))
+    new_traj[:, 0] = np.interp(new_indices, old_indices, traj[:, 0])
+    new_traj[:, 1] = np.interp(new_indices, old_indices, traj[:, 1])
+    
+    return new_traj
+
+
 def simulate_with_jax(init_pos, init_vel, wind_center, wind_size, wind_direction, wind_strength):
     """Simulate using JAX physics engine."""
     config = SimulationConfig(dt=0.01, num_steps=100)
@@ -117,11 +156,11 @@ def simulate_with_jax(init_pos, init_vel, wind_center, wind_size, wind_direction
 # =============================================================================
 
 def main():
-    # Load model
-    model_path = project_root / 'models' / 'trained_model_large.pt'
+    # Load model - use the full trained model
+    model_path = project_root / 'models' / 'trained_model_full.pt'
     print(f"Loading model from {model_path}...")
     
-    checkpoint = torch.load(model_path, map_location='cpu')
+    checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
     args = checkpoint['args']
     
     model = InverseModel(hidden_dim=args['hidden_dim'], latent_dim=args['latent_dim'])
@@ -131,16 +170,21 @@ def main():
     print(f"Model loaded! Best val loss: {checkpoint['val_loss']:.6f}")
     print(f"Parameters: hidden_dim={args['hidden_dim']}, latent_dim={args['latent_dim']}")
     
-    # Generate test samples
-    print("\nGenerating 20 test samples...")
+    # Generate test samples from ALL difficulty levels
+    print("\nGenerating 20 test samples (5 per difficulty)...")
     key = random.PRNGKey(999)  # Different seed from training
     test_samples = []
-    easy_level = DIFFICULTY_LEVELS['easy']
     
-    for i in range(20):
-        key, subkey = random.split(key)
-        sample = generate_sample_at_difficulty(subkey, easy_level)
-        test_samples.append(sample)
+    for diff_name in ['easy', 'medium', 'hard', 'expert']:
+        level = DIFFICULTY_LEVELS[diff_name]
+        for i in range(5):
+            key, subkey = random.split(key)
+            try:
+                sample = generate_sample_at_difficulty(subkey, level)
+                sample['difficulty'] = diff_name
+                test_samples.append(sample)
+            except:
+                continue
     
     # Evaluate and collect results
     print("Evaluating model predictions...")
@@ -148,8 +192,9 @@ def main():
     
     with torch.no_grad():
         for sample in test_samples:
-            # Get original trajectory
+            # Get original trajectory and resample to 100 steps
             orig_traj = np.array(sample['trajectory'])
+            orig_traj = resample_trajectory(orig_traj, 100)
             init_pos = np.array(sample['initial_position'])
             init_vel = np.array(sample['initial_velocity'])
             
