@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrajectoryForge - AI Force Field Prediction</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg: #0d0d12;
+            --bg-elevated: #16161d;
+            --bg-card: #1a1a24;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --cyan: #22d3ee;
+            --magenta: #ec4899;
+            --green: #10b981;
+            --orange: #f97316;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255,255,255,0.08);
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 30%, var(--accent-glow) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 70%, rgba(236, 72, 153, 0.15) 0%, transparent 50%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.85rem;
+            color: var(--cyan);
+            margin-bottom: 24px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, var(--text) 0%, var(--cyan) 50%, var(--magenta) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--magenta));
+            color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--accent-glow);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            border-color: var(--accent);
+        }
+        
+        /* Demo Preview */
+        .demo-preview {
+            margin-top: 60px;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16/10;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .demo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* Sections */
+        section {
+            padding: 100px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+        
+        h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            margin-bottom: 24px;
+        }
+        
+        .section-desc {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 700px;
+            margin-bottom: 48px;
+        }
+        
+        /* How It Works */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 32px;
+        }
+        
+        .step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+        
+        .step:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+        }
+        
+        .step-number {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), var(--magenta));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        
+        .step h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+        }
+        
+        .step p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        /* Architecture */
+        .architecture {
+            background: var(--bg-elevated);
+            border-radius: 24px;
+            padding: 48px;
+            border: 1px solid var(--border);
+        }
+        
+        .arch-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-top: 32px;
+        }
+        
+        .arch-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px 32px;
+            text-align: center;
+            min-width: 180px;
+        }
+        
+        .arch-box.encoder { border-color: var(--cyan); }
+        .arch-box.latent { border-color: var(--accent); }
+        .arch-box.decoder { border-color: var(--magenta); }
+        
+        .arch-box h4 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+        
+        .arch-box p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .arch-arrow {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+        }
+        
+        /* Field Types */
+        .field-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+        }
+        
+        .field-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.3s ease;
+        }
+        
+        .field-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        .field-card.wind { border-left: 4px solid #3b82f6; }
+        .field-card.vortex { border-left: 4px solid #a855f7; }
+        .field-card.attractor { border-left: 4px solid #10b981; }
+        .field-card.repeller { border-left: 4px solid #ef4444; }
+        
+        .field-icon {
+            font-size: 2rem;
+            margin-bottom: 16px;
+        }
+        
+        .field-card h4 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+        
+        .field-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin-top: 48px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--cyan), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 8px;
+        }
+        
+        /* Code Block */
+        .code-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--magenta); }
+        .code-block .function { color: var(--cyan); }
+        .code-block .string { color: var(--green); }
+        .code-block .number { color: var(--orange); }
+        
+        /* Footer */
+        footer {
+            background: var(--bg-elevated);
+            border-top: 1px solid var(--border);
+            padding: 60px 20px;
+            text-align: center;
+        }
+        
+        footer p {
+            color: var(--text-muted);
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 { font-size: 2.5rem; }
+            h2 { font-size: 2rem; }
+            section { padding: 60px 20px; }
+            .architecture { padding: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <span class="badge">🧪 Research Project</span>
+            <h1>TrajectoryForge</h1>
+            <p class="subtitle">
+                A neural network that learns to predict force fields from trajectories. 
+                Draw a path, and watch AI figure out what forces would create it.
+            </p>
+            <div class="cta-buttons">
+                <a href="/demo" class="btn btn-primary">Try the Demo →</a>
+                <a href="https://github.com/ThomasKidane/trajectoryforge" class="btn btn-secondary">View on GitHub</a>
+            </div>
+        </div>
+        
+        <div class="demo-preview">
+            <canvas id="heroCanvas"></canvas>
+        </div>
+    </section>
+    
+    <!-- How It Works -->
+    <section>
+        <span class="section-label">How It Works</span>
+        <h2>The Inverse Problem</h2>
+        <p class="section-desc">
+            Given a trajectory, what force fields would cause a ball to follow that path? 
+            This is an inverse problem — we're working backwards from effect to cause.
+        </p>
+        
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Draw a Trajectory</h3>
+                <p>Sketch any path you want — curves, spirals, zigzags. This becomes the target trajectory the model needs to reproduce.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>Encode with Transformer</h3>
+                <p>A transformer encoder processes the trajectory points, using self-attention to understand the global shape and local curvature.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Predict Force Fields</h3>
+                <p>A slot-based decoder outputs up to 6 force fields — each with a type (wind, vortex, attractor, repeller) and parameters.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <h3>Simulate & Compare</h3>
+                <p>The predicted fields are used in a differentiable physics simulation. The loss is the difference between predicted and target trajectories.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Architecture -->
+    <section>
+        <span class="section-label">Architecture</span>
+        <h2>Neural Network Design</h2>
+        <p class="section-desc">
+            An encoder-decoder architecture with a transformer backbone and slot-based multi-field prediction.
+        </p>
+        
+        <div class="architecture">
+            <div class="arch-diagram">
+                <div class="arch-box encoder">
+                    <h4>Trajectory Encoder</h4>
+                    <p>4-layer Transformer<br>256 hidden dim<br>4 attention heads</p>
+                </div>
+                <span class="arch-arrow">→</span>
+                <div class="arch-box latent">
+                    <h4>Latent Space</h4>
+                    <p>128-dim vector<br>Trajectory embedding</p>
+                </div>
+                <span class="arch-arrow">→</span>
+                <div class="arch-box decoder">
+                    <h4>Multi-Field Decoder</h4>
+                    <p>6 parallel slots<br>Type + Parameters<br>per slot</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Force Fields -->
+    <section>
+        <span class="section-label">Force Fields</span>
+        <h2>What the Model Predicts</h2>
+        <p class="section-desc">
+            Each slot can predict one of four force field types, plus "none" for unused slots.
+        </p>
+        
+        <div class="field-types">
+            <div class="field-card wind">
+                <div class="field-icon">💨</div>
+                <h4>Wind Field</h4>
+                <p>A rectangular region with constant directional force. Defined by center, size, direction, and strength.</p>
+            </div>
+            <div class="field-card vortex">
+                <div class="field-icon">🌀</div>
+                <h4>Vortex Field</h4>
+                <p>A circular region with tangential force. Creates rotation — clockwise or counter-clockwise based on strength sign.</p>
+            </div>
+            <div class="field-card attractor">
+                <div class="field-icon">🧲</div>
+                <h4>Attractor</h4>
+                <p>A point that pulls objects toward its center. Strength determines the pull force within the radius.</p>
+            </div>
+            <div class="field-card repeller">
+                <div class="field-icon">💥</div>
+                <h4>Repeller</h4>
+                <p>A point that pushes objects away from its center. The opposite of an attractor.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Training Stats -->
+    <section>
+        <span class="section-label">Training</span>
+        <h2>Model Statistics</h2>
+        <p class="section-desc">
+            Trained on synthetic trajectories generated with random force field configurations.
+        </p>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">4M</div>
+                <div class="stat-label">Parameters</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">40K</div>
+                <div class="stat-label">Training Samples</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">300</div>
+                <div class="stat-label">Epochs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">53h</div>
+                <div class="stat-label">Training Time</div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Code Example -->
+    <section>
+        <span class="section-label">Code</span>
+        <h2>Differentiable Physics</h2>
+        <p class="section-desc">
+            The key insight: physics simulation is differentiable, so we can backpropagate through it.
+        </p>
+        
+        <div class="code-block">
+<span class="keyword">def</span> <span class="function">simulate_trajectory</span>(init_pos, init_vel, force_fields, dt=<span class="number">0.02</span>):
+    <span class="string">"""Differentiable physics simulation."""</span>
+    pos, vel = init_pos, init_vel
+    trajectory = [pos]
+    
+    <span class="keyword">for</span> step <span class="keyword">in</span> <span class="function">range</span>(num_steps):
+        <span class="comment"># Compute total force from all fields</span>
+        total_force = <span class="function">sum</span>(field(pos) <span class="keyword">for</span> field <span class="keyword">in</span> force_fields)
+        
+        <span class="comment"># Physics update (Euler integration)</span>
+        vel = vel + total_force * dt
+        pos = pos + vel * dt
+        trajectory.<span class="function">append</span>(pos)
+    
+    <span class="keyword">return</span> <span class="function">stack</span>(trajectory)
+
+<span class="comment"># Loss = MSE between predicted and target trajectory</span>
+loss = <span class="function">mse</span>(predicted_trajectory, target_trajectory)
+loss.<span class="function">backward</span>()  <span class="comment"># Gradients flow through physics!</span>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer>
+        <p>
+            Built with PyTorch, JAX, and Flask<br>
+            <a href="https://github.com/ThomasKidane/trajectoryforge">GitHub</a> · 
+            <a href="/demo">Demo</a>
+        </p>
+    </footer>
+    
+    <script>
+        // Animated hero canvas
+        const canvas = document.getElementById('heroCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+        
+        // Animated trajectory
+        let t = 0;
+        const points = [];
+        
+        function animate() {
+            ctx.fillStyle = 'rgba(13, 13, 18, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Generate point on parametric curve
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const scale = Math.min(canvas.width, canvas.height) * 0.3;
+            
+            const x = cx + Math.cos(t * 0.5) * scale + Math.sin(t * 1.3) * scale * 0.3;
+            const y = cy + Math.sin(t * 0.7) * scale * 0.8 + Math.cos(t * 0.9) * scale * 0.2;
+            
+            points.push({x, y, age: 0});
+            
+            // Draw trail
+            ctx.beginPath();
+            points.forEach((p, i) => {
+                const alpha = 1 - p.age / 100;
+                if (alpha <= 0) return;
+                
+                ctx.strokeStyle = `rgba(99, 102, 241, ${alpha})`;
+                ctx.lineWidth = 3;
+                
+                if (i === 0) {
+                    ctx.moveTo(p.x, p.y);
+                } else {
+                    ctx.lineTo(p.x, p.y);
+                }
+                p.age++;
+            });
+            ctx.stroke();
+            
+            // Draw current point
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#22d3ee';
+            ctx.fill();
+            
+            // Remove old points
+            while (points.length > 0 && points[0].age > 100) {
+                points.shift();
+            }
+            
+            t += 0.03;
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
+

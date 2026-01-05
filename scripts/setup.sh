@@ -80,3 +80,6 @@ echo "  --full    : Full training (GPU recommended)"
 echo "  --epochs N: Custom number of epochs"
 echo ""
 
+
+
+
