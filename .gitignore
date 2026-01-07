@@ -68,7 +68,6 @@ data/processed/
 
 # Model checkpoints
 checkpoints/
-models/*.pkl
 models/saved/
 
 # Node.js (for game/)

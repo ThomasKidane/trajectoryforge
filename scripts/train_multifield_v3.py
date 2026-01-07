@@ -59,7 +59,7 @@ class TrajectoryEncoder(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.input_proj = nn.Linear(2, hidden_dim)
-        self.pos_encoding = nn.Parameter(torch.randn(1, 300, hidden_dim) * 0.02)
+        self.pos_encoding = nn.Parameter(torch.randn(1, 500, hidden_dim) * 0.02)
         
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim, nhead=num_heads,
@@ -529,13 +529,14 @@ def main():
     parser = argparse.ArgumentParser(description='TrajectoryForge V3 - Fully Random Training')
     parser.add_argument('--num-samples', type=int, default=50000, help='Total training samples')
     parser.add_argument('--min-fields', type=int, default=1, help='Min fields per sample')
-    parser.add_argument('--max-fields', type=int, default=4, help='Max fields per sample')
+    parser.add_argument('--max-fields', type=int, default=8, help='Max fields per sample')
+    parser.add_argument('--num-steps', type=int, default=300, help='Number of timesteps per trajectory')
     parser.add_argument('--epochs', type=int, default=300, help='Training epochs')
     parser.add_argument('--batch-size', type=int, default=256, help='Batch size (increase for more VRAM usage)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden dimension')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dimension')
-    parser.add_argument('--num-slots', type=int, default=6, help='Number of prediction slots')
+    parser.add_argument('--num-slots', type=int, default=10, help='Number of prediction slots')
     parser.add_argument('--output-dir', type=str, default='models', help='Output directory')
     parser.add_argument('--resume', type=str, default=None, help='Resume from checkpoint')
     parser.add_argument('--seed', type=int, default=42)
@@ -552,6 +553,7 @@ def main():
     print("=" * 70)
     print(f"Samples: {args.num_samples}")
     print(f"Fields per sample: {args.min_fields}-{args.max_fields}")
+    print(f"Timesteps: {args.num_steps}")
     print(f"Batch size: {args.batch_size}")
     print(f"Epochs: {args.epochs}")
     print(f"Slots: {args.num_slots}")
@@ -565,7 +567,7 @@ def main():
         print(f"GPU: {gpu_name} ({gpu_mem:.1f} GB)")
     
     # Generate data
-    cache_path = Path(args.output_dir) / f'random_data_cache_{args.num_samples}.pt'
+    cache_path = Path(args.output_dir) / f'random_data_cache_{args.num_samples}_steps{args.num_steps}.pt'
     if cache_path.exists():
         print(f"\nLoading cached data from {cache_path}...")
         samples = torch.load(cache_path, weights_only=False)
@@ -573,7 +575,8 @@ def main():
         samples = generate_data_random(
             args.num_samples, 
             num_fields_range=(args.min_fields, args.max_fields),
-            seed=args.seed
+            seed=args.seed,
+            num_steps=args.num_steps
         )
         print(f"Caching data to {cache_path}...")
         torch.save(samples, cache_path)
@@ -583,8 +586,8 @@ def main():
     val_samples = samples[split:]
     print(f"\nTrain: {len(train_samples)}, Val: {len(val_samples)}")
     
-    train_dataset = RandomFieldDataset(train_samples, target_length=100)
-    val_dataset = RandomFieldDataset(val_samples, target_length=100)
+    train_dataset = RandomFieldDataset(train_samples, target_length=args.num_steps)
+    val_dataset = RandomFieldDataset(val_samples, target_length=args.num_steps)
     
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, 
@@ -634,8 +637,8 @@ def main():
             )
             break
         
-        train_loss = train_epoch(model, train_loader, optimizer, device)
-        val_loss = evaluate(model, val_loader, device)
+        train_loss = train_epoch(model, train_loader, optimizer, device, num_steps=args.num_steps)
+        val_loss = evaluate(model, val_loader, device, num_steps=args.num_steps)
         scheduler.step()
         
         elapsed = time.time() - start_time

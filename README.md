@@ -4,41 +4,7 @@
 
 TrajectoryForge is an interactive 2D physics puzzle game where players compete against an AI to configure force fields that guide a ball along a target trajectory. The core challenge is an *inverse problem*: given a desired path, find the optimal placement and parameters of force fields that minimize the error between the simulated trajectory and the target path.
 
-## 🚀 Quick Start (AWS/Cloud)
-
-### One-Command Setup
-
-```bash
-# Clone and setup
-git clone https://github.com/ThomasKidane/trajectoryforge.git
-cd trajectoryforge
-chmod +x scripts/*.sh
-./scripts/setup.sh
-```
-
-### Train the Model
-
-```bash
-# Quick test (5-10 min, CPU ok)
-./scripts/run_training.sh --quick
-
-# Full training (GPU recommended, 20-30 min)
-./scripts/run_training.sh --full
-
-# Custom training
-source venv/bin/activate
-python scripts/train.py --model large --epochs 200 --samples 2000
-```
-
-### AWS Instance Recommendations
-
-| Instance Type | GPU | Cost/hr | Training Time |
-|---------------|-----|---------|---------------|
-| `t3.large` | ❌ CPU | ~$0.08 | 2-4 hours |
-| `g4dn.xlarge` | ✅ T4 | ~$0.50 | 15-30 min |
-| `p3.2xlarge` | ✅ V100 | ~$3.00 | 5-10 min |
-
-**Recommended**: `g4dn.xlarge` with Deep Learning AMI (Ubuntu)
+![TrajectoryForge Concept](docs/concept.png)
 
 ## 🎮 Game Mechanics
 
@@ -72,18 +38,18 @@ trajectory-forge/
 └── experiments/      # Experiment configs and logs
 ```
 
-## 🚀 Local Development
+## 🚀 Quick Start
 
 ### Prerequisites
 - Python 3.10+
-- Node.js 18+ (for web game)
+- Node.js 18+
 - CUDA (optional, for GPU acceleration)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/ThomasKidane/trajectoryforge.git
+git clone https://github.com/yourusername/trajectoryforge.git
 cd trajectoryforge
 
 # Set up Python environment
@@ -91,8 +57,10 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Verify installation
-python scripts/verify_setup.py
+# Set up the web game
+cd game
+npm install
+npm run dev
 ```
 
 ### Running the Notebooks
