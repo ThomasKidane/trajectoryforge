@@ -33,9 +33,8 @@ import jax
 import jax.numpy as jnp
 from jax import random
 
-from physics.state import PhysicsState, SimulationConfig
-from physics.fields import WindField, VortexField, PointForce
-from physics.simulator import simulate_trajectory
+# Don't use physics library - it has compatibility issues
+# We'll implement simple simulation directly
 
 
 # Global flag for graceful shutdown
@@ -268,17 +267,92 @@ def simulate_trajectory_multifield(init_pos, init_vel, slots, dt=0.01, num_steps
 
 
 # =============================================================================
-# FULLY RANDOM Data Generation (V3 - No Difficulty Levels)
+# FULLY RANDOM Data Generation (V3 - Standalone, no physics library)
 # =============================================================================
+
+def simulate_trajectory_jax(init_pos, init_vel, fields_data, num_steps=100, dt=0.02):
+    """
+    Simple JAX-based trajectory simulation.
+    fields_data: list of dicts with field type and parameters
+    """
+    position = jnp.array(init_pos)
+    velocity = jnp.array(init_vel)
+    positions = [position]
+    
+    for _ in range(num_steps - 1):
+        total_force = jnp.zeros(2)
+        
+        for field in fields_data:
+            ftype = field['type']
+            center = jnp.array(field['center'])
+            
+            if ftype == 'wind':
+                # Wind field - constant force in a box region
+                size = jnp.array(field['size'])
+                direction = jnp.array(field['direction'])
+                strength = field['strength']
+                
+                # Soft box indicator
+                rel = jnp.abs(position - center) / (size / 2 + 1e-8)
+                inside = jnp.prod(jnp.clip(1.0 - rel, 0.0, 1.0))
+                force = inside * strength * direction
+                
+            elif ftype == 'vortex':
+                # Vortex field - tangential force
+                radius = field['radius']
+                strength = field['strength']
+                
+                to_center = position - center
+                dist = jnp.linalg.norm(to_center) + 1e-8
+                inside = jnp.clip(1.0 - dist / radius, 0.0, 1.0)
+                tangent = jnp.array([-to_center[1], to_center[0]]) / dist
+                force = inside * strength * tangent
+                
+            elif ftype == 'attractor':
+                # Attractor - pulls toward center
+                radius = field['radius']
+                strength = field['strength']
+                
+                to_center = center - position
+                dist = jnp.linalg.norm(to_center) + 1e-8
+                inside = jnp.clip(1.0 - dist / radius, 0.0, 1.0)
+                direction = to_center / dist
+                force = inside * strength * direction / (1.0 + dist * 0.5)
+                
+            else:  # repeller
+                # Repeller - pushes away from center
+                radius = field['radius']
+                strength = field['strength']
+                
+                to_center = center - position
+                dist = jnp.linalg.norm(to_center) + 1e-8
+                inside = jnp.clip(1.0 - dist / radius, 0.0, 1.0)
+                direction = to_center / dist
+                force = -inside * jnp.abs(strength) * direction / (1.0 + dist * 0.5)
+            
+            total_force = total_force + force
+        
+        # Update physics
+        velocity = velocity + total_force * dt
+        velocity = velocity * 0.99  # drag
+        position = position + velocity * dt
+        
+        # Bounds
+        position = jnp.clip(position, -5.0, 5.0)
+        
+        positions.append(position)
+    
+    return jnp.stack(positions)
+
 
 def generate_random_sample(key, num_fields_range=(1, 4), num_steps=100, dt=0.02):
     """
     Generate a sample with FULLY RANDOM force fields.
     No difficulty levels - pure randomness for all parameters.
     """
-    keys = random.split(key, 10)
+    keys = random.split(key, 20)
     
-    # Random initial position in [-3, 3] x [-3, 3]
+    # Random initial position in [-2.5, 2.5] x [-2.5, 2.5]
     init_pos = random.uniform(keys[0], (2,), minval=-2.5, maxval=2.5)
     
     # Random initial velocity (can be zero or moving)
@@ -290,75 +364,75 @@ def generate_random_sample(key, num_fields_range=(1, 4), num_steps=100, dt=0.02)
     # Random number of fields
     num_fields = int(random.randint(keys[3], (), num_fields_range[0], num_fields_range[1] + 1))
     
-    # Generate random fields
-    fields = []
+    # Generate random fields as simple dicts
+    fields_data = []
+    field_types = []
+    
     for i in range(num_fields):
         field_keys = random.split(keys[4 + i], 8)
         
         # Random field type (equal probability)
-        field_type = int(random.randint(field_keys[0], (), 0, 4))
+        field_type_idx = int(random.randint(field_keys[0], (), 0, 4))
         
         # Random center position
         center = random.uniform(field_keys[1], (2,), minval=-3.0, maxval=3.0)
         
-        if field_type == 0:  # Wind
+        if field_type_idx == 0:  # Wind
             size = random.uniform(field_keys[2], (2,), minval=0.5, maxval=3.0)
             direction = random.uniform(field_keys[3], (2,), minval=-1.0, maxval=1.0)
             direction = direction / (jnp.linalg.norm(direction) + 1e-8)
-            strength = random.uniform(field_keys[4], (), minval=1.0, maxval=8.0)
-            fields.append(WindField(
-                center=tuple(center.tolist()),
-                size=tuple(size.tolist()),
-                direction=tuple(direction.tolist()),
-                strength=float(strength)
-            ))
+            strength = float(random.uniform(field_keys[4], (), minval=1.0, maxval=8.0))
+            fields_data.append({
+                'type': 'wind',
+                'center': center.tolist(),
+                'size': size.tolist(),
+                'direction': direction.tolist(),
+                'strength': strength
+            })
+            field_types.append('WindField')
         
-        elif field_type == 1:  # Vortex
+        elif field_type_idx == 1:  # Vortex
             radius = float(random.uniform(field_keys[2], (), minval=0.5, maxval=2.5))
-            strength = random.uniform(field_keys[3], (), minval=-6.0, maxval=6.0)
-            fields.append(VortexField(
-                center=tuple(center.tolist()),
-                radius=radius,
-                strength=float(strength)
-            ))
+            strength = float(random.uniform(field_keys[3], (), minval=-6.0, maxval=6.0))
+            fields_data.append({
+                'type': 'vortex',
+                'center': center.tolist(),
+                'radius': radius,
+                'strength': strength
+            })
+            field_types.append('VortexField')
         
-        elif field_type == 2:  # Attractor
+        elif field_type_idx == 2:  # Attractor
             radius = float(random.uniform(field_keys[2], (), minval=0.5, maxval=3.0))
             strength = float(random.uniform(field_keys[3], (), minval=2.0, maxval=10.0))
-            fields.append(PointForce(
-                center=tuple(center.tolist()),
-                radius=radius,
-                strength=strength,
-                falloff_power=2.0
-            ))
+            fields_data.append({
+                'type': 'attractor',
+                'center': center.tolist(),
+                'radius': radius,
+                'strength': strength
+            })
+            field_types.append('PointForce')
         
         else:  # Repeller
             radius = float(random.uniform(field_keys[2], (), minval=0.5, maxval=3.0))
-            strength = float(random.uniform(field_keys[3], (), minval=-10.0, maxval=-2.0))
-            fields.append(PointForce(
-                center=tuple(center.tolist()),
-                radius=radius,
-                strength=strength,
-                falloff_power=2.0
-            ))
+            strength = float(random.uniform(field_keys[3], (), minval=2.0, maxval=10.0))
+            fields_data.append({
+                'type': 'repeller',
+                'center': center.tolist(),
+                'radius': radius,
+                'strength': strength
+            })
+            field_types.append('PointForce')
     
     # Simulate trajectory
-    config = SimulationConfig(dt=dt, num_steps=num_steps, bounds=(-5.0, 5.0))
-    init_state = PhysicsState(
-        position=jnp.array(init_pos),
-        velocity=jnp.array(init_vel),
-        time=0.0
-    )
-    
-    traj_data = simulate_trajectory(init_state, fields, config)
-    trajectory = traj_data.positions
+    trajectory = simulate_trajectory_jax(init_pos, init_vel, fields_data, num_steps=num_steps, dt=dt)
     
     return {
         'trajectory': np.array(trajectory),
         'initial_position': np.array(init_pos),
         'initial_velocity': np.array(init_vel),
         'num_fields': num_fields,
-        'field_types': [type(f).__name__ for f in fields],
+        'field_types': field_types,
     }
 
 
