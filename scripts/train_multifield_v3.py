@@ -35,7 +35,7 @@ from jax import random
 
 from physics.state import PhysicsState, SimulationConfig
 from physics.fields import WindField, VortexField, PointForce
-from physics.simulation import simulate
+from physics.simulator import simulate_trajectory
 
 
 # Global flag for graceful shutdown
@@ -349,7 +349,8 @@ def generate_random_sample(key, num_fields_range=(1, 4), num_steps=100, dt=0.02)
         velocity=jnp.array(init_vel)
     )
     
-    trajectory = simulate(init_state, fields, config)
+    traj_data = simulate_trajectory(init_state, fields, config)
+    trajectory = traj_data.positions
     
     return {
         'trajectory': np.array(trajectory),
