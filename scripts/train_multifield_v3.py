@@ -346,7 +346,8 @@ def generate_random_sample(key, num_fields_range=(1, 4), num_steps=100, dt=0.02)
     config = SimulationConfig(dt=dt, num_steps=num_steps, bounds=(-5.0, 5.0))
     init_state = PhysicsState(
         position=jnp.array(init_pos),
-        velocity=jnp.array(init_vel)
+        velocity=jnp.array(init_vel),
+        time=0.0
     )
     
     traj_data = simulate_trajectory(init_state, fields, config)
